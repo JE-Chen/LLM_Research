@@ -27,6 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+# pylint: disable=wrong-import-position  # both imports need the sys.path.insert above
 from datas.RAG_data.irrelevant_rules import irrelevant_rule_docs  # noqa: E402 - import needs the sys.path.insert above
 from datas.RAG_data.rag_data import rule_docs as relevant_rule_docs  # noqa: E402 - import needs the sys.path.insert above
 
@@ -85,6 +86,7 @@ class RemoteJobTerminationError(RuntimeError):
 
 def log(*parts):
     msg = " ".join(str(p) for p in parts)
+    # nosemgrep: codacy.python.i18n.no-hardcoded-strftime - machine-parsed run log, not user-facing text
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
     print(line, flush=True)
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
