@@ -19,11 +19,19 @@ DIMENSIONS = (
     "comprehensiveness",
 )
 SCORE_RE = re.compile(r'"(' + "|".join(DIMENSIONS) + r')"\s*:\s*(\d+)')
+SCORE_FILE = "our_score_gpt56sol_rag.md"
 
 
-def load_scores(root: Path) -> dict[str, dict[str, int]]:
+def load_scores(root: Path, score_file: str = SCORE_FILE) -> dict[str, dict[str, int]]:
+    """Load one score file per case under ``root``.
+
+    ``score_file`` selects which score set to read, so a group that was
+    re-judged in a later session (written under a different filename to keep
+    the original scores intact) can be paired against another arm judged in
+    that same session.
+    """
     rows: dict[str, dict[str, int]] = {}
-    for score_path in sorted(root.rglob("our_score_gpt56sol_rag.md")):
+    for score_path in sorted(root.rglob(score_file)):
         case_id = score_path.parent.name
         values = {key: int(value) for key, value in SCORE_RE.findall(score_path.read_text(encoding="utf-8"))}
         if set(values) != set(DIMENSIONS):
@@ -124,11 +132,19 @@ def render_markdown(summary: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("experiment_root", type=Path)
+    parser.add_argument("--score-file", default=SCORE_FILE,
+                        help="score filename to read for both conditions")
+    parser.add_argument("--basename", default="rag_on_off_quality_summary",
+                        help="output basename, so a re-judged set can be "
+                             "written alongside the original summary")
     args = parser.parse_args()
     root = args.experiment_root
-    summary = summarize(load_scores(root / "multi_rag_on"), load_scores(root / "multi_rag_off"))
-    json_path = root / "rag_on_off_quality_summary.json"
-    md_path = root / "rag_on_off_quality_summary.md"
+    summary = summarize(
+        load_scores(root / "multi_rag_on", args.score_file),
+        load_scores(root / "multi_rag_off", args.score_file),
+    )
+    json_path = root / f"{args.basename}.json"
+    md_path = root / f"{args.basename}.md"
     json_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     md_path.write_text(render_markdown(summary), encoding="utf-8")
     print(md_path.read_text(encoding="utf-8"))
