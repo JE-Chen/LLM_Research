@@ -25,6 +25,13 @@ never happens and the gap compounds.
 - NEVER mention "Claude", "Claude Code", "AI-generated", "GPT", "Copilot", or any AI tool / model
   name anywhere — including commit messages, PR titles, PR descriptions, code comments, and
   documentation.
+- **Pull requests must not mention any AI — at all.** PR titles, descriptions, the commit list,
+  review comments, and any linked discussion MUST NOT name Claude, Copilot, GPT, ChatGPT, Gemini,
+  Codex, or any other AI tool / model / assistant, and MUST NOT state or imply the change was
+  produced, assisted, or reviewed by AI. The ONLY exception is a literal code identifier the change
+  actually touches (e.g. `AnthropicBackend`, `ClaudeCliBackend`, `CodexCliBackend`,
+  `GeminiBackend`): naming the class you edited is allowed; crediting or referencing the AI itself
+  is not.
 - Commit message format: `<type>: <short description>` (≤ 72 chars), where type ∈
   `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `security`. Body explains **why**,
   not what; wrap at 72 chars.

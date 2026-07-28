@@ -5,6 +5,31 @@ import pytest
 from scores import gemma_experiment_driver as driver
 
 
+@pytest.fixture(autouse=True)
+def _isolate_driver_output(monkeypatch, tmp_path):
+    """Keep driver output out of the real ``datas/Results`` tree.
+
+    ``OUT_ROOT``, ``LOG`` and ``SERVER_MANIFEST`` are module-level and default
+    to an archived experiment directory, so any test reaching ``log()`` would
+    append a line to committed research data and break its manifest hash.
+    """
+    monkeypatch.setattr(driver, "OUT_ROOT", tmp_path)
+    monkeypatch.setattr(driver, "LOG", tmp_path / "run.log")
+    monkeypatch.setattr(driver, "SERVER_MANIFEST", tmp_path / "server_manifest.json")
+
+
+def test_log_writes_only_under_the_configured_out_root(tmp_path):
+    """Regression: a stray ``log()`` used to land in a real results directory."""
+    default_log = driver.REPO / "datas" / "Results" / "2026-07-20-gemma4-rag-calibrated" / "run.log"
+    before = default_log.read_bytes() if default_log.exists() else None
+
+    driver.log("probe")
+
+    assert (tmp_path / "run.log").read_text(encoding="utf-8").endswith("probe\n")
+    if before is not None:
+        assert default_log.read_bytes() == before, "test wrote into archived research data"
+
+
 def test_fixed_irrelevant_rules_are_stable_and_fixed_count(monkeypatch):
     monkeypatch.setattr(driver, "IRRELEVANT_RULE_COUNT", 3)
 
@@ -46,7 +71,6 @@ def test_timeout_cancels_and_waits_for_terminal_status(monkeypatch):
 
 
 def test_fixed_condition_manifest_is_explicit(monkeypatch, tmp_path):
-    monkeypatch.setattr(driver, "OUT_ROOT", tmp_path)
     monkeypatch.setattr(driver, "IRRELEVANT_RULE_COUNT", 3)
 
     driver._write_condition_manifest(["multi_irrelevant_fixed"])
