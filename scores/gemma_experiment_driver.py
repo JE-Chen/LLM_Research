@@ -7,7 +7,7 @@ restart resumes where it left off.
 Env:
   CASES_LIMIT   process only the first N cases per condition (0 = all)
   CONDITIONS    comma list subset of: multi_rag_on,single,multi_rag_off,
-                multi_irrelevant_fixed
+                multi_irrelevant_fixed,multi_all_rules_direct
   OUT_ROOT      new run directory; do not reuse a completed experiment
   RAG_THRESHOLD embedding-model-calibrated cutoff (default 0.32)
   PRTHINKER_BASE_URL server base URL
@@ -27,7 +27,8 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from datas.RAG_data.irrelevant_rules import irrelevant_rule_docs
+from datas.RAG_data.irrelevant_rules import irrelevant_rule_docs  # noqa: E402 - import needs the sys.path.insert above
+from datas.RAG_data.rag_data import rule_docs as relevant_rule_docs  # noqa: E402 - import needs the sys.path.insert above
 
 BASE = os.environ.get(
     "PRTHINKER_BASE_URL", "http://127.0.0.1:8000"
@@ -205,23 +206,38 @@ def _fixed_irrelevant_rules(case):
     ]
 
 
-def _write_condition_manifest(conditions):
-    if "multi_irrelevant_fixed" not in conditions:
-        return
-    manifest = {
-        "condition": "multi_irrelevant_fixed",
+def _injection_manifest(condition, docs, rules_per_case, selection):
+    """Build a condition manifest for an extra_rules direct-injection group."""
+    return {
+        "condition": condition,
         "method": "direct_extra_rules",
         "rag_enabled": False,
         "rag_threshold_recorded_but_not_applied": RAG_THRESHOLD,
-        "rules_per_case": IRRELEVANT_RULE_COUNT,
-        "selection": "sha256(case_id) rotating window",
-        "rule_corpus_size": len(irrelevant_rule_docs),
+        "rules_per_case": rules_per_case,
+        "selection": selection,
+        "rule_corpus_size": len(docs),
         "rule_corpus_sha256": hashlib.sha256(
-            "\n\n".join(irrelevant_rule_docs).encode("utf-8")
+            "\n\n".join(docs).encode("utf-8")
         ).hexdigest(),
         "max_new_tokens_per_step": 8192,
         "step_plan": "full",
     }
+
+
+def _write_condition_manifest(conditions):
+    manifest = None
+    if "multi_irrelevant_fixed" in conditions:
+        manifest = _injection_manifest(
+            "multi_irrelevant_fixed", irrelevant_rule_docs,
+            IRRELEVANT_RULE_COUNT, "sha256(case_id) rotating window",
+        )
+    elif "multi_all_rules_direct" in conditions:
+        manifest = _injection_manifest(
+            "multi_all_rules_direct", relevant_rule_docs,
+            len(relevant_rule_docs), "full relevant corpus (identical every case)",
+        )
+    if manifest is None:
+        return
     (OUT_ROOT / "condition_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -290,6 +306,14 @@ def main():
                         False,
                         condition=cond,
                         extra_rules=_fixed_irrelevant_rules(case),
+                    )
+                elif cond == "multi_all_rules_direct":
+                    res = do_multi(
+                        case,
+                        src,
+                        False,
+                        condition=cond,
+                        extra_rules=list(relevant_rule_docs),
                     )
                 elif cond == "single":
                     res = do_single(case, src)
